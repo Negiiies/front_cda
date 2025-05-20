@@ -73,18 +73,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       ? [{ label: 'Barèmes', path: '/scales', icon: 'document-text' }] 
       : []),
     
-    // Uniquement pour les professeurs
-    ...(user.role === 'teacher' 
-      ? [{ label: 'Mes classes', path: '/classes', icon: 'users' }] 
-      : []),
-    
     // Uniquement pour les admins
     ...(user.role === 'admin' 
       ? [{ label: 'Utilisateurs', path: '/users', icon: 'user-group' }] 
-      : []),
-    
-    // Pour tous les rôles - Mon profil
-    { label: 'Mon Profil', path: '/profile', icon: 'user' },
+      : [])
   ];
 
   return (
@@ -136,7 +128,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <header className="bg-white shadow-sm">
           <div className="flex items-center justify-between px-6 py-4">
             <div>
-              <h2 className="text-2xl font-bold">Bonjour, {roleLabel} {userDisplayName}</h2>
+              {/* Mise à jour: rendre tout le texte visible et coloré */}
+              <h2 className="text-2xl font-bold text-[#138784]">
+                Bonjour, {roleLabel} {user.email}
+              </h2>
               <p className="text-gray-500">{formattedDate}</p>
             </div>
             <div className="flex items-center space-x-4">

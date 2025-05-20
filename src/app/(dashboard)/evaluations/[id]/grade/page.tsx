@@ -4,12 +4,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '../../../../../lib/auth';
+import { useNotification } from '../../../../../contexts/NotificationContext';
 import evaluationService, { Evaluation, Grade } from '../../../../../services/evaluationService';
+import scaleService from '../../../../../services/scaleService';
 import Link from 'next/link';
-import { ArrowLeftIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 
 export default function GradeEvaluationPage() {
   const { user } = useAuth();
+  const { showNotification } = useNotification();
   const router = useRouter();
   const params = useParams();
   const evaluationId = Number(params.id);
@@ -21,6 +24,7 @@ export default function GradeEvaluationPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [debug, setDebug] = useState<any>({});
 
   useEffect(() => {
     // Rediriger si l'utilisateur n'est pas un professeur
@@ -32,13 +36,106 @@ export default function GradeEvaluationPage() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        console.log("=== DÉBUT DU CHARGEMENT DES DONNÉES ===");
         
         // Récupérer l'évaluation complète
+        console.log(`Chargement de l'évaluation ID: ${evaluationId}`);
         const evalData = await evaluationService.getEvaluationById(evaluationId);
+        console.log(`Évaluation chargée:`, evalData);
+        
+        if (!evalData) {
+          console.error("Évaluation non trouvée");
+          throw new Error('Évaluation non trouvée');
+        }
+        
+        // Vérification de l'évaluation et ses relations
+        const debugInfo = {
+          hasScale: !!evalData.scale,
+          scaleName: evalData.scale?.title || 'Non défini',
+          hasScaleCriteria: !!(evalData.scale?.criteria && evalData.scale.criteria.length > 0),
+          criteriaCount: evalData.scale?.criteria?.length || 0
+        };
+        
+        console.log("Informations de débogage:", debugInfo);
+        setDebug(debugInfo);
+        
+        // Si l'évaluation n'a pas de barème ou de critères, essayer de les charger manuellement
+        if (!evalData.scale || !evalData.scale.criteria || evalData.scale.criteria.length === 0) {
+          console.log("Problème détecté: Barème ou critères manquants");
+          
+          if (!evalData.scale) {
+            console.log(`Tentative de chargement manuel du barème ID: ${evalData.scaleId}`);
+            try {
+              const scaleData = await scaleService.getScaleById(evalData.scaleId);
+              console.log("Barème chargé manuellement:", scaleData);
+              
+              // Mettre à jour l'évaluation avec le barème
+              evalData.scale = scaleData;
+              
+              // Vérifier si des critères ont été chargés avec le barème
+              if (!scaleData.criteria || scaleData.criteria.length === 0) {
+                console.log("Le barème n'a pas de critères, tentative de chargement manuel");
+                
+                try {
+                  const criteriaData = await scaleService.getCriteriaByScaleId(evalData.scaleId);
+                  console.log("Critères chargés manuellement:", criteriaData);
+                  
+                  if (criteriaData && criteriaData.length > 0) {
+                    evalData.scale.criteria = criteriaData;
+                  } else {
+                    console.error("Aucun critère trouvé pour ce barème");
+                  }
+                } catch (criteriaError) {
+                  console.error("Erreur lors du chargement manuel des critères:", criteriaError);
+                }
+              }
+            } catch (scaleError) {
+              console.error("Erreur lors du chargement manuel du barème:", scaleError);
+            }
+          } else if (!evalData.scale.criteria || evalData.scale.criteria.length === 0) {
+            console.log(`Tentative de chargement manuel des critères pour le barème ID: ${evalData.scaleId}`);
+            
+            try {
+              const criteriaData = await scaleService.getCriteriaByScaleId(evalData.scaleId);
+              console.log("Critères chargés manuellement:", criteriaData);
+              
+              if (criteriaData && criteriaData.length > 0) {
+                evalData.scale.criteria = criteriaData;
+              } else {
+                console.error("Aucun critère trouvé pour ce barème");
+              }
+            } catch (criteriaError) {
+              console.error("Erreur lors du chargement manuel des critères:", criteriaError);
+            }
+          }
+          
+          // Mettre à jour les informations de débogage après les tentatives de récupération
+          setDebug({
+            ...debugInfo,
+            hasScale: !!evalData.scale,
+            scaleName: evalData.scale?.title || 'Non défini',
+            hasScaleCriteria: !!(evalData.scale?.criteria && evalData.scale.criteria.length > 0),
+            criteriaCount: evalData.scale?.criteria?.length || 0,
+            manualRecoveryAttempted: true
+          });
+        }
+        
+        // Vérifier que l'évaluation appartient au professeur connecté
+        if (evalData.teacherId !== user?.userId) {
+          throw new Error('Vous n\'êtes pas autorisé à noter cette évaluation');
+        }
+        
+        // Vérifier que l'évaluation est en statut draft
+        if (evalData.status !== 'draft') {
+          throw new Error('Cette évaluation ne peut plus être modifiée');
+        }
+        
         setEvaluation(evalData);
         
         // Récupérer les notes existantes
+        console.log("Chargement des notes existantes");
         const gradesData = await evaluationService.getGrades(evaluationId);
+        console.log("Notes existantes:", gradesData);
         setExistingGrades(gradesData);
         
         // Pré-remplir les notes existantes
@@ -47,16 +144,19 @@ export default function GradeEvaluationPage() {
           return acc;
         }, {});
         setGrades(gradesMap);
-      } catch (err) {
+        
+        console.log("=== FIN DU CHARGEMENT DES DONNÉES ===");
+      } catch (err: any) {
         console.error('Erreur lors du chargement des données', err);
-        setError('Impossible de charger les détails de cette évaluation.');
+        setError(err.message || 'Impossible de charger les détails de cette évaluation.');
+        showNotification('error', 'Erreur de chargement', err.message || 'Impossible de charger les détails de cette évaluation.');
       } finally {
         setLoading(false);
       }
     };
     
     fetchData();
-  }, [user, router, evaluationId]);
+  }, [user, router, evaluationId, showNotification]);
 
   const handleGradeChange = (criteriaId: number, value: number, maxPoints: number) => {
     // Vérifier que la note n'excède pas le maximum
@@ -73,16 +173,11 @@ export default function GradeEvaluationPage() {
   const calculateTotalGrade = (): number => {
     if (!evaluation?.scale?.criteria) return 0;
     
-    // Méthode 1: Somme simple des notes
-    return Object.values(grades).reduce((sum, value) => sum + (value || 0), 0);
-    
-    // Méthode 2: Somme pondérée (si vous souhaitez utiliser les coefficients)
-    /*
+    // Somme simple des notes
     return evaluation.scale.criteria.reduce((sum, criteria) => {
       const grade = grades[criteria.id] || 0;
-      return sum + (grade * criteria.coefficient);
+      return sum + grade;
     }, 0);
-    */
   };
 
   const calculateMaxGrade = (): number => {
@@ -104,6 +199,7 @@ export default function GradeEvaluationPage() {
     
     if (!allCriteriaGraded) {
       setError('Veuillez noter tous les critères avant de soumettre.');
+      showNotification('warning', 'Formulaire incomplet', 'Veuillez noter tous les critères avant de soumettre.');
       return;
     }
     
@@ -112,19 +208,25 @@ export default function GradeEvaluationPage() {
     setSuccess(null);
     
     try {
+      console.log("Début de la sauvegarde des notes");
+      
       // Pour chaque critère, créer ou mettre à jour la note
       const promises = criteria.map(async (criteria) => {
         const criteriaId = criteria.id;
         const value = grades[criteriaId];
+        
+        console.log(`Traitement de la note pour le critère ${criteriaId}: ${value}`);
         
         // Chercher si une note existe déjà pour ce critère
         const existingGrade = existingGrades.find(g => g.criteriaId === criteriaId);
         
         if (existingGrade) {
           // Mettre à jour la note existante
+          console.log(`Mise à jour de la note existante ID: ${existingGrade.id}`);
           return await evaluationService.updateGrade(existingGrade.id, value);
         } else {
           // Créer une nouvelle note
+          console.log(`Création d'une nouvelle note pour le critère: ${criteriaId}`);
           return await evaluationService.createGrade({
             evaluationId,
             criteriaId,
@@ -133,11 +235,14 @@ export default function GradeEvaluationPage() {
         }
       });
       
-      await Promise.all(promises);
+      const results = await Promise.all(promises);
+      console.log("Résultats de la sauvegarde:", results);
       
       setSuccess('Notes enregistrées avec succès!');
+      showNotification('success', 'Notes enregistrées', 'Les notes ont été enregistrées avec succès.');
       
       // Recharger les données pour afficher les notes mises à jour
+      console.log("Rechargement des données après sauvegarde");
       const updatedEval = await evaluationService.getEvaluationById(evaluationId);
       setEvaluation(updatedEval);
       
@@ -146,6 +251,7 @@ export default function GradeEvaluationPage() {
     } catch (err) {
       console.error('Erreur lors de l\'enregistrement des notes', err);
       setError('Impossible d\'enregistrer les notes. Veuillez réessayer.');
+      showNotification('error', 'Erreur d\'enregistrement', 'Impossible d\'enregistrer les notes. Veuillez réessayer.');
     } finally {
       setSaving(false);
     }
@@ -181,6 +287,9 @@ export default function GradeEvaluationPage() {
     );
   }
 
+  // Vérifier si le barème a des critères
+  const hasCriteria = evaluation.scale?.criteria && evaluation.scale.criteria.length > 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center space-x-2 mb-6">
@@ -203,6 +312,22 @@ export default function GradeEvaluationPage() {
         </div>
       )}
       
+      {/* Information de débogage - À supprimer en production */}
+      {Object.keys(debug).length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6">
+          <h3 className="font-medium flex items-center">
+            <ExclamationCircleIcon className="h-5 w-5 mr-2" />
+            Informations de débogage
+          </h3>
+          <ul className="mt-2 text-sm space-y-1">
+            <li>Barème présent: {debug.hasScale ? 'Oui' : 'Non'}</li>
+            <li>Nom du barème: {debug.scaleName}</li>
+            <li>Critères présents: {debug.hasScaleCriteria ? 'Oui' : 'Non'}</li>
+            <li>Nombre de critères: {debug.criteriaCount}</li>
+          </ul>
+        </div>
+      )}
+      
       <div className="bg-white rounded-lg shadow p-6">
         <div className="mb-6">
           <h2 className="text-xl font-semibold">{evaluation.title}</h2>
@@ -213,7 +338,7 @@ export default function GradeEvaluationPage() {
             Étudiant: {evaluation.student?.name}
           </div>
           <div className="text-sm text-gray-500">
-            Barème: {evaluation.scale?.title}
+            Barème: {evaluation.scale?.title || `ID: ${evaluation.scaleId}`}
           </div>
           
           <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-100">
@@ -227,6 +352,15 @@ export default function GradeEvaluationPage() {
         {!canGrade ? (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg">
             Cette évaluation ne peut plus être modifiée car elle n'est plus en statut "brouillon".
+          </div>
+        ) : !hasCriteria ? (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg">
+            <p>Le barème sélectionné ne contient pas de critères d'évaluation.</p>
+            <p className="mt-2">
+              <Link href={`/scales/${evaluation.scaleId}`} className="text-[#138784] hover:underline">
+                Modifier le barème pour ajouter des critères
+              </Link>
+            </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -242,63 +376,63 @@ export default function GradeEvaluationPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {evaluation.scale?.criteria?.map((criteria) => (
-                    <tr key={criteria.id}>
-                      <td className="px-4 py-3 text-sm">{criteria.description}</td>
-                      <td className="px-4 py-3 text-sm">{criteria.associatedSkill}</td>
-                      <td className="px-4 py-3 text-sm text-center">{criteria.coefficient}</td>
-                      <td className="px-4 py-3 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max={criteria.maxPoints}
-                          step="0.5"
-                          className="w-20 text-center px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-                          value={grades[criteria.id] || ''}
-                          onChange={(e) => handleGradeChange(criteria.id, parseFloat(e.target.value) || 0, criteria.maxPoints)}
-                          disabled={!canGrade}
-                          required
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right">{criteria.maxPoints}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50 font-medium">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm" colSpan={3}>
-                      Total
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm">
-                      {calculateTotalGrade().toFixed(1)}
-                    </th>
-                    <th className="px-4 py-3 text-right text-sm">
-                      {calculateMaxGrade()}
-                    </th>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            
-            <div className="flex justify-end space-x-4 mt-6">
-              <Link
-                href={`/evaluations/${evaluationId}`}
-                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              >
-                Annuler
-              </Link>
-              
-              <button
-                type="submit"
-                disabled={saving || !canGrade}
-                className="bg-[#138784] text-white px-6 py-2 rounded-md hover:bg-[#0c6460] disabled:opacity-50"
-              >
-                {saving ? 'Enregistrement...' : 'Enregistrer les notes'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  );
+                {evaluation.scale?.criteria?.map((criteria) => (
+                   <tr key={criteria.id}>
+                     <td className="px-4 py-3 text-sm">{criteria.description}</td>
+                     <td className="px-4 py-3 text-sm">{criteria.associatedSkill}</td>
+                     <td className="px-4 py-3 text-sm text-center">{criteria.coefficient}</td>
+                     <td className="px-4 py-3 text-center">
+                       <input
+                         type="number"
+                         min="0"
+                         max={criteria.maxPoints}
+                         step="0.5"
+                         className="w-20 text-center px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
+                         value={grades[criteria.id] || ''}
+                         onChange={(e) => handleGradeChange(criteria.id, parseFloat(e.target.value) || 0, criteria.maxPoints)}
+                         disabled={!canGrade}
+                         required
+                       />
+                     </td>
+                     <td className="px-4 py-3 text-sm text-right">{criteria.maxPoints}</td>
+                   </tr>
+                 ))}
+               </tbody>
+               <tfoot className="bg-gray-50 font-medium">
+                 <tr>
+                   <th className="px-4 py-3 text-left text-sm" colSpan={3}>
+                     Total
+                   </th>
+                   <th className="px-4 py-3 text-center text-sm">
+                     {calculateTotalGrade().toFixed(1)}
+                   </th>
+                   <th className="px-4 py-3 text-right text-sm">
+                     {calculateMaxGrade()}
+                   </th>
+                 </tr>
+               </tfoot>
+             </table>
+           </div>
+           
+           <div className="flex justify-end space-x-4 mt-6">
+             <Link
+               href={`/evaluations/${evaluationId}`}
+               className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+             >
+               Annuler
+             </Link>
+             
+             <button
+               type="submit"
+               disabled={saving || !canGrade}
+               className="bg-[#138784] text-white px-6 py-2 rounded-md hover:bg-[#0c6460] disabled:opacity-50"
+             >
+               {saving ? 'Enregistrement...' : 'Enregistrer les notes'}
+             </button>
+           </div>
+         </form>
+       )}
+     </div>
+   </div>
+ );
 }

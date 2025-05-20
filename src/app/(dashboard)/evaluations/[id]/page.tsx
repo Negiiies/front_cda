@@ -1,23 +1,25 @@
-// src/app/(dashboard)/evaluations/[id]/page.tsx
+// src/app/(dashboard)/evaluations/[id]/page.tsx - version améliorée
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../../lib/auth';
-import evaluationService, { Evaluation } from '../../../../services/evaluationService';
+import evaluationService, { Evaluation, Grade } from '../../../../services/evaluationService';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ClockIcon, CheckCircleIcon, UserIcon, AcademicCapIcon, ArchiveBoxIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { useNotification } from '../../../../contexts/NotificationContext';
 
 export default function EvaluationDetailPage() {
   const { user } = useAuth();
+  const { showNotification } = useNotification();
   const params = useParams();
   const router = useRouter();
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<any[]>([]);
-  const [grades, setGrades] = useState<any[]>([]);
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   const evaluationId = Number(params.id);
 
@@ -26,31 +28,51 @@ export default function EvaluationDetailPage() {
       try {
         const evalData = await evaluationService.getEvaluationById(evaluationId);
         setEvaluation(evalData);
-        
-        // Charger les commentaires et les notes
-        const commentsData = await evaluationService.getComments(evaluationId);
-        setComments(commentsData);
-        
-        const gradesData = await evaluationService.getGrades(evaluationId);
-        setGrades(gradesData);
       } catch (err) {
         console.error('Erreur lors du chargement des données', err);
         setError('Impossible de charger les détails de cette évaluation.');
+        showNotification('error', 'Erreur de chargement', 'Impossible de charger les détails de cette évaluation.');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [evaluationId]);
+  }, [evaluationId, showNotification]);
 
-  const handleChangeStatus = async (newStatus: 'draft' | 'published' | 'archived') => {
+  const handleChangeStatus = async (newStatus: 'published' | 'archived') => {
     try {
+      setChangingStatus(true);
+      
+      // Si on publie, vérifier d'abord que toutes les compétences ont des notes
+      if (newStatus === 'published') {
+        const criteria = evaluation?.scale?.criteria || [];
+        const grades = evaluation?.grades || [];
+        
+        // Vérifier que chaque critère a une note
+        const allCriteriaGraded = criteria.every(criterion => 
+          grades.some(grade => grade.criteriaId === criterion.id)
+        );
+        
+        if (!allCriteriaGraded) {
+          showNotification('warning', 'Action impossible', 
+            'Vous devez noter tous les critères avant de publier cette évaluation.');
+          setChangingStatus(false);
+          return;
+        }
+      }
+      
       const updatedEvaluation = await evaluationService.changeStatus(evaluationId, newStatus);
       setEvaluation(updatedEvaluation);
+      
+      showNotification('success', 'Statut mis à jour', 
+        `L'évaluation a été ${newStatus === 'published' ? 'publiée' : 'archivée'} avec succès.`);
+      
     } catch (err) {
       console.error('Erreur lors du changement de statut', err);
-      setError('Impossible de changer le statut de cette évaluation.');
+      showNotification('error', 'Erreur', 'Impossible de changer le statut de cette évaluation.');
+    } finally {
+      setChangingStatus(false);
     }
   };
 
@@ -59,12 +81,23 @@ export default function EvaluationDetailPage() {
     if (!commentText.trim()) return;
     
     try {
+      setSubmittingComment(true);
       const newComment = await evaluationService.addComment(evaluationId, commentText);
-      setComments([newComment, ...comments]);
+      
+      // Mettre à jour l'évaluation avec le nouveau commentaire
+      setEvaluation(prev => {
+        if (!prev) return prev;
+        const updatedComments = [...(prev.comments || []), newComment];
+        return { ...prev, comments: updatedComments };
+      });
+      
       setCommentText('');
+      showNotification('success', 'Commentaire ajouté', 'Votre commentaire a été ajouté avec succès.');
     } catch (err) {
       console.error('Erreur lors de l\'ajout du commentaire', err);
-      setError('Impossible d\'ajouter ce commentaire.');
+      showNotification('error', 'Erreur', 'Impossible d\'ajouter ce commentaire.');
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -95,6 +128,13 @@ export default function EvaluationDetailPage() {
   const isTeacher = user?.role === 'teacher';
   const isTeacherOfEvaluation = isTeacher && user?.userId === evaluation.teacherId;
   const canEdit = isTeacherOfEvaluation && evaluation.status === 'draft';
+  const canGrade = isTeacherOfEvaluation && evaluation.status === 'draft';
+  const canPublish = isTeacherOfEvaluation && evaluation.status === 'draft';
+  const canArchive = isTeacherOfEvaluation && evaluation.status === 'published';
+
+  // Calculer la note totale
+  const totalPoints = evaluation.grades?.reduce((sum, grade) => sum + grade.value, 0) || 0;
+  const maxPoints = evaluation.scale?.criteria?.reduce((sum, criteria) => sum + criteria.maxPoints, 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -120,34 +160,36 @@ export default function EvaluationDetailPage() {
           {/* Boutons d'action pour le professeur */}
           {isTeacherOfEvaluation && (
             <div className="flex space-x-2">
-              {evaluation.status === 'draft' && (
-                <>
-                  <button
-                    onClick={() => handleChangeStatus('published')}
-                    className="bg-green-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-green-700"
-                  >
-                    <CheckCircleIcon className="h-4 w-4" />
-                    <span>Publier</span>
-                  </button>
-                  
-                  <Link
-                    href={`/evaluations/${evaluationId}/edit`}
-                    className="bg-blue-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-blue-700"
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                    <span>Modifier</span>
-                  </Link>
-                </>
+              {canPublish && (
+                <button
+                  onClick={() => handleChangeStatus('published')}
+                  disabled={changingStatus}
+                  className="bg-green-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-green-700 disabled:opacity-50"
+                >
+                  <CheckCircleIcon className="h-4 w-4" />
+                  <span>{changingStatus ? 'Publication...' : 'Publier'}</span>
+                </button>
               )}
               
-              {evaluation.status === 'published' && (
+              {canArchive && (
                 <button
                   onClick={() => handleChangeStatus('archived')}
-                  className="bg-gray-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-gray-700"
+                  disabled={changingStatus}
+                  className="bg-gray-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-gray-700 disabled:opacity-50"
                 >
                   <ArchiveBoxIcon className="h-4 w-4" />
-                  <span>Archiver</span>
+                  <span>{changingStatus ? 'Archivage...' : 'Archiver'}</span>
                 </button>
+              )}
+              
+              {canEdit && (
+                <Link
+                  href={`/evaluations/${evaluationId}/edit`}
+                  className="bg-blue-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-blue-700"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  <span>Modifier</span>
+                </Link>
               )}
             </div>
           )}
@@ -185,45 +227,68 @@ export default function EvaluationDetailPage() {
               </div>
             </div>
           </div>
+          
+          {canGrade && (
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <Link
+                href={`/evaluations/${evaluationId}/grade`}
+                className="w-full block text-center bg-[#138784] text-white px-4 py-2 rounded-md hover:bg-[#0c6460]"
+              >
+                Attribuer des notes
+              </Link>
+            </div>
+          )}
         </div>
         
         {/* Colonne 2: Barème et notes */}
         <div className="bg-white rounded-lg shadow p-6 md:col-span-2">
           <h2 className="text-xl font-semibold mb-4">Notes</h2>
           
-          {grades.length === 0 ? (
+          {!evaluation.grades || evaluation.grades.length === 0 ? (
             <p className="text-gray-500">Aucune note disponible pour le moment.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Critère</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Compétence</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Note</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Max</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {grades.map((grade) => (
-                    <tr key={grade.id}>
-                      <td className="px-4 py-2 text-sm">{grade.criteria?.description}</td>
-                      <td className="px-4 py-2 text-sm">{grade.criteria?.associatedSkill}</td>
-                      <td className="px-4 py-2 text-sm text-right font-medium">{grade.value}</td>
-                      <td className="px-4 py-2 text-sm text-right text-gray-500">{grade.criteria?.maxPoints}</td>
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Critère</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Compétence</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Note</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Max</th>
                     </tr>
-                  ))}
-                  <tr className="bg-gray-50">
-                    <td colSpan={2} className="px-4 py-2 text-sm font-bold">Total</td>
-                    <td className="px-4 py-2 text-sm text-right font-bold">
-                      {grades.reduce((sum, grade) => sum + grade.value, 0)}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-right font-bold">
-                      {grades.reduce((sum, grade) => sum + grade.criteria?.maxPoints, 0)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {evaluation.grades.map((grade) => (
+                      <tr key={grade.id}>
+                        <td className="px-4 py-2 text-sm">{grade.criteria?.description}</td>
+                        <td className="px-4 py-2 text-sm">{grade.criteria?.associatedSkill}</td>
+                        <td className="px-4 py-2 text-sm text-right font-medium">{grade.value}</td>
+                        <td className="px-4 py-2 text-sm text-right text-gray-500">{grade.criteria?.maxPoints}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50">
+                      <td colSpan={2} className="px-4 py-2 text-sm font-bold">Total</td>
+                      <td className="px-4 py-2 text-sm text-right font-bold">{totalPoints}</td>
+                      <td className="px-4 py-2 text-sm text-right font-bold">{maxPoints}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Barre de progression (facultatif) */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Score: {totalPoints}/{maxPoints}</span>
+                  <span>{Math.round((totalPoints / maxPoints) * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-[#138784] h-2.5 rounded-full" 
+                    style={{ width: `${Math.min(100, Math.round((totalPoints / maxPoints) * 100))}%` }}
+                  ></div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -249,9 +314,10 @@ export default function EvaluationDetailPage() {
             <div className="flex justify-end">
               <button
                 type="submit"
-                className="bg-[#138784] text-white px-4 py-2 rounded-md hover:bg-[#0c6460]"
+                disabled={submittingComment || !commentText.trim()}
+                className="bg-[#138784] text-white px-4 py-2 rounded-md hover:bg-[#0c6460] disabled:opacity-50"
               >
-                Ajouter un commentaire
+                {submittingComment ? 'Envoi en cours...' : 'Ajouter un commentaire'}
               </button>
             </div>
           </form>
@@ -259,10 +325,10 @@ export default function EvaluationDetailPage() {
         
         {/* Liste des commentaires */}
         <div className="space-y-4">
-          {comments.length === 0 ? (
+          {!evaluation.comments || evaluation.comments.length === 0 ? (
             <p className="text-gray-500">Aucun commentaire pour le moment.</p>
           ) : (
-            comments.map((comment) => (
+            evaluation.comments.map((comment) => (
               <div key={comment.id} className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex justify-between items-start mb-2">
                   <div className="font-medium">{comment.teacher?.name}</div>

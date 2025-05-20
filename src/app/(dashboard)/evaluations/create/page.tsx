@@ -1,194 +1,259 @@
 // src/app/(dashboard)/evaluations/create/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../../lib/auth';
+import { useNotification } from '../../../../contexts/NotificationContext';
 import evaluationService from '../../../../services/evaluationService';
-import scaleService, { Scale, Criteria } from '../../../../services/scaleService';
+import scaleService, { Scale } from '../../../../services/scaleService';
 import userService, { User } from '../../../../services/userService';
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
-
-// Types pour les données de secours
-interface FallbackStudent {
-  id: number;
-  name: string;
-  email: string;
-  role: 'student';
-  status: 'active' | 'inactive';
-}
-
-interface FallbackCriteria {
-  id: number;
-  description: string;
-  associatedSkill: string;
-  maxPoints: number;
-  coefficient: number;
-}
-
-interface FallbackScale {
-  id: number;
-  title: string;
-  description?: string;
-  criteria: FallbackCriteria[];
-}
+import LoadingSpinner from '../../../../components/ui/LoadingSpinner';
 
 export default function CreateEvaluationPage() {
   const { user: authUser } = useAuth();
   const router = useRouter();
+  const { showNotification } = useNotification();
   
-  const [title, setTitle] = useState('');
-  const [dateEval, setDateEval] = useState('');
-  const [studentId, setStudentId] = useState<number | ''>('');
-  const [scaleId, setScaleId] = useState<number | ''>('');
+  // États du formulaire
+  const [formData, setFormData] = useState({
+    title: '',
+    dateEval: '',
+    studentId: '',
+    scaleId: ''
+  });
   
-  const [students, setStudents] = useState<User[] | FallbackStudent[]>([]);
-  const [scales, setScales] = useState<Scale[] | FallbackScale[]>([]);
-  const [selectedScale, setSelectedScale] = useState<Scale | FallbackScale | null>(null);
+  // États de données externes
+  const [students, setStudents] = useState<User[]>([]);
+  const [scales, setScales] = useState<Scale[]>([]);
+  const [selectedScale, setSelectedScale] = useState<Scale | null>(null);
   
+  // États de UI
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
-  const [loadingStudents, setLoadingStudents] = useState(true);
-  const [loadingScales, setLoadingScales] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fetchAttempted, setFetchAttempted] = useState(false);
+  const [apiError, setApiError] = useState<Record<string, string>>({});
+  // Pour éviter les boucles infinies
+  const [authChecked, setAuthChecked] = useState(false);
+  const [dataFetched, setDataFetched] = useState(false);
 
+  // Vérifier les autorisations d'accès - maintenant avec garde pour éviter les boucles
   useEffect(() => {
-    // Rediriger si l'utilisateur n'est pas un professeur
-    if (authUser && authUser.role !== 'teacher' && authUser.role !== 'admin') {
-      router.push('/dashboard');
-      return;
+    if (!authChecked && authUser) {
+      setAuthChecked(true);
+      if (authUser.role !== 'teacher' && authUser.role !== 'admin') {
+        showNotification('error', 'Accès non autorisé', 'Seuls les professeurs et administrateurs peuvent créer des évaluations.');
+        router.push('/dashboard');
+      }
     }
+  }, [authUser, router, showNotification, authChecked]);
 
-    // Utiliser des données simulées si aucune donnée réelle n'est chargée
-    const fallbackStudents: FallbackStudent[] = [
-      { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'student', status: 'active' },
-      { id: 2, name: 'Bob Wilson', email: 'bob@example.com', role: 'student', status: 'active' },
-      { id: 3, name: 'Charlie Brown', email: 'charlie@example.com', role: 'student', status: 'active' },
-    ];
-
-    const fallbackScales: FallbackScale[] = [
-      { 
-        id: 1, 
-        title: 'Évaluation de développement web', 
-        description: 'Barème pour les projets web frontend', 
-        criteria: [
-          { id: 1, description: 'Qualité du code', associatedSkill: 'Développement', maxPoints: 20, coefficient: 0.3 },
-          { id: 2, description: 'Design et UX', associatedSkill: 'Interface', maxPoints: 15, coefficient: 0.3 },
-          { id: 3, description: 'Fonctionnalités', associatedSkill: 'Technique', maxPoints: 25, coefficient: 0.4 }
-        ]
-      },
-      { 
-        id: 2, 
-        title: 'Évaluation de conception', 
-        description: 'Barème pour les projets de design', 
-        criteria: [
-          { id: 4, description: 'Créativité', associatedSkill: 'Conception', maxPoints: 30, coefficient: 0.5 },
-          { id: 5, description: 'Technique', associatedSkill: 'Outils', maxPoints: 20, coefficient: 0.5 }
-        ]
-      }
-    ];
-
-    const fetchData = async () => {
-      if (fetchAttempted) return;
-      setFetchAttempted(true);
-      
-      // Charger les étudiants
-      setLoadingStudents(true);
-      try {
-        const studentsData = await userService.getUsers();
-        // Filtrer seulement les étudiants actifs
-        const filteredStudents = studentsData.filter(u => u.role === 'student' && u.status === 'active');
-        setStudents(filteredStudents);
-      } catch (err) {
-        console.error('Erreur lors du chargement des étudiants:', err);
-        // Utiliser des données de secours en cas d'échec
-        setStudents(fallbackStudents);
-      } finally {
-        setLoadingStudents(false);
-      }
-      
-      // Charger les barèmes
-      setLoadingScales(true);
-      try {
-        const scalesData = await scaleService.getScales();
-        // Filtrer les barèmes disponibles pour ce professeur
-        const availableScales = authUser?.role === 'admin' 
-          ? scalesData 
-          : scalesData.filter((s: Scale) => s.creatorId === authUser?.userId || s.isShared);
+  // Charger les données initiales avec garde contre les boucles infinies
+  useEffect(() => {
+    if (!dataFetched && authUser && authChecked) {
+      const fetchData = async () => {
+        setDataLoading(true);
+        setError(null);
+        
+        try {
+          // Charger les étudiants
+          console.log('Chargement des étudiants...');
+          const studentsData = await userService.getUsers();
+          // Filtrer uniquement les étudiants actifs
+          const filteredStudents = studentsData.filter(u => u.role === 'student' && u.status === 'active');
+          setStudents(filteredStudents);
+          console.log(`${filteredStudents.length} étudiants chargés`);
           
-        setScales(availableScales);
-      } catch (err) {
-        console.error('Erreur lors du chargement des barèmes:', err);
-        // Utiliser des données de secours en cas d'échec
-        setScales(fallbackScales);
-      } finally {
-        setLoadingScales(false);
-      }
+          // Charger les barèmes
+          console.log('Chargement des barèmes...');
+          const scalesData = await scaleService.getScales();
+          // Pour les professeurs, filtrer seulement leurs barèmes et les barèmes partagés
+          const availableScales = authUser?.role === 'admin' 
+            ? scalesData 
+            : scalesData.filter(s => s.creatorId === authUser?.userId || s.isShared);
+            
+          setScales(availableScales);
+          console.log(`${availableScales.length} barèmes disponibles`);
+          
+        } catch (err) {
+          console.error('Erreur lors du chargement des données initiales:', err);
+          setError('Impossible de charger les données nécessaires. Veuillez réessayer plus tard.');
+          // Ne pas appeler showNotification ici pour éviter une possible boucle
+        } finally {
+          setDataLoading(false);
+          setDataFetched(true); // Marquer les données comme chargées
+        }
+      };
       
-      setDataLoading(false);
-    };
-    
-    fetchData();
-  }, [authUser, router, fetchAttempted]);
-
-  // Charger les détails du barème sélectionné
-  useEffect(() => {
-    if (!scaleId) {
-      setSelectedScale(null);
-      return;
+      fetchData();
     }
-    
-    const fetchScaleDetails = async () => {
-      const selected = scales.find(s => s.id === Number(scaleId));
-      if (selected) {
-        setSelectedScale(selected);
+  }, [authUser, authChecked, dataFetched]);
+
+  // Charger les détails du barème sélectionné - mémorisé pour éviter les boucles
+  const fetchScaleDetails = useCallback(async (scaleId: number) => {
+    try {
+      // Vérifier d'abord si nous avons déjà ce barème dans la liste des barèmes chargés
+      const found = scales.find(s => s.id === scaleId);
+      if (found && found.criteria) {
+        setSelectedScale(found);
         return;
       }
       
-      try {
-        const scaleData = await scaleService.getScaleById(Number(scaleId));
-        setSelectedScale(scaleData);
-      } catch (err) {
-        console.error('Erreur lors du chargement des détails du barème:', err);
-        setError('Impossible de charger les détails du barème sélectionné.');
-      }
-    };
-    
-    fetchScaleDetails();
-  }, [scaleId, scales]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!title || !dateEval || !studentId || !scaleId) {
-      setError('Tous les champs sont obligatoires.');
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const evaluationData = {
-        title,
-        dateEval: new Date(dateEval),
-        studentId: Number(studentId),
-        scaleId: Number(scaleId)
-      };
-      
-      await evaluationService.createEvaluation(evaluationData);
-      router.push('/evaluations');
+      // Sinon, charger les détails depuis l'API
+      console.log(`Chargement des détails du barème ${scaleId}...`);
+      const scaleData = await scaleService.getScaleById(scaleId);
+      setSelectedScale(scaleData);
     } catch (err) {
-      console.error('Erreur lors de la création de l\'évaluation:', err);
-      setError('Impossible de créer l\'évaluation. Veuillez vérifier vos données.');
-    } finally {
-      setLoading(false);
+      console.error('Erreur lors du chargement des détails du barème:', err);
+      setApiError(prev => ({...prev, scaleId: 'Impossible de charger les détails du barème sélectionné'}));
     }
+  }, [scales]);
+
+  // Écouter les changements de barème sélectionné
+  useEffect(() => {
+    if (formData.scaleId) {
+      const scaleId = Number(formData.scaleId);
+      fetchScaleDetails(scaleId);
+    } else {
+      setSelectedScale(null);
+    }
+  }, [formData.scaleId, fetchScaleDetails]);
+
+  // Gérer les changements de champs du formulaire
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    
+    // Effacer les erreurs spécifiques au champ lors de la modification
+    if (apiError[name]) {
+      setApiError(prev => {
+        const newErrors = {...prev};
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  if (dataLoading || loadingStudents || loadingScales) {
+  // Validation du formulaire
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    if (!formData.title.trim()) {
+      errors.title = 'Le titre est requis';
+    }
+    
+    if (!formData.dateEval) {
+      errors.dateEval = 'La date d\'évaluation est requise';
+    }
+    
+    if (!formData.studentId) {
+      errors.studentId = 'Veuillez sélectionner un étudiant';
+    }
+    
+    if (!formData.scaleId) {
+      errors.scaleId = 'Veuillez sélectionner un barème';
+    }
+    
+    // Mettre à jour les erreurs de validation
+    setApiError(errors);
+    
+    // Formulaire valide si aucune erreur
+    return Object.keys(errors).length === 0;
+  };
+
+  // Fonction de soumission de formulaire améliorée pour la page de création d'évaluation
+// Remplacez la fonction handleSubmit existante par celle-ci
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!validateForm()) {
+    return;
+  }
+  
+  setLoading(true);
+  setError(null);
+  
+  try {
+    // Afficher les données exactes qui seront envoyées
+    const evaluationData = {
+      title: formData.title,
+      dateEval: formData.dateEval,
+      studentId: formData.studentId,
+      scaleId: formData.scaleId
+    };
+    
+    console.log('Données qui seront envoyées au serveur:', evaluationData);
+    console.log('Types des données:',
+      `title: ${typeof formData.title}`,
+      `dateEval: ${typeof formData.dateEval}`,
+      `studentId: ${typeof formData.studentId}`,
+      `scaleId: ${typeof formData.scaleId}`
+    );
+    
+    // Vérifier si les IDs sont bien numériques
+    const studentIdNum = parseInt(formData.studentId as string, 10);
+    const scaleIdNum = parseInt(formData.scaleId as string, 10);
+    
+    if (isNaN(studentIdNum)) {
+      throw new Error("L'ID de l'étudiant n'est pas un nombre valide");
+    }
+    
+    if (isNaN(scaleIdNum)) {
+      throw new Error("L'ID du barème n'est pas un nombre valide");
+    }
+    
+    // Envoi des données au service
+    const result = await evaluationService.createEvaluation({
+      title: formData.title,
+      dateEval: formData.dateEval,
+      studentId: studentIdNum,
+      scaleId: scaleIdNum
+    });
+    
+    console.log('Évaluation créée avec succès:', result);
+    
+    // Notification et redirection
+    showNotification('success', 'Évaluation créée', 'L\'évaluation a été créée avec succès.');
+    router.push('/evaluations');
+  } catch (err: any) {
+    console.error('Erreur lors de la création de l\'évaluation:', err);
+    
+    let errorMessage = 'Impossible de créer l\'évaluation. ';
+    
+    // Gestion précise de l'erreur
+    if (err.response?.data?.message) {
+      errorMessage += err.response.data.message;
+    } else if (err.response?.data?.errors) {
+      // Erreurs de validation côté serveur
+      const serverErrors = err.response.data.errors;
+      errorMessage += serverErrors.map((e: any) => e.message).join('. ');
+      
+      setApiError(serverErrors.reduce((acc: Record<string, string>, error: any) => {
+        acc[error.field] = error.message;
+        return acc;
+      }, {}));
+    } else if (err.message) {
+      errorMessage += err.message;
+    } else {
+      errorMessage += 'Veuillez vérifier vos données et réessayer.';
+    }
+    
+    setError(errorMessage);
+    showNotification('error', 'Erreur', errorMessage);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // Afficher le chargement
+  if (dataLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center space-x-2 mb-6">
@@ -197,9 +262,7 @@ export default function CreateEvaluationPage() {
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">Créer une nouvelle évaluation</h1>
         </div>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#138784]"></div>
-        </div>
+        <LoadingSpinner size="lg" text="Chargement des données..." />
       </div>
     );
   }
@@ -221,6 +284,7 @@ export default function CreateEvaluationPage() {
       
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Titre de l'évaluation */}
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
               Titre de l'évaluation *
@@ -228,13 +292,19 @@ export default function CreateEvaluationPage() {
             <input
               type="text"
               id="title"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              name="title"
+              className={`w-full px-4 py-2 border ${apiError.title ? 'border-red-300' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]`}
+              value={formData.title}
+              onChange={handleChange}
+              disabled={loading}
               required
             />
+            {apiError.title && (
+              <p className="mt-1 text-sm text-red-600">{apiError.title}</p>
+            )}
           </div>
           
+          {/* Date d'évaluation */}
           <div>
             <label htmlFor="dateEval" className="block text-sm font-medium text-gray-700 mb-1">
               Date d'évaluation *
@@ -242,22 +312,30 @@ export default function CreateEvaluationPage() {
             <input
               type="date"
               id="dateEval"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-              value={dateEval}
-              onChange={(e) => setDateEval(e.target.value)}
+              name="dateEval"
+              className={`w-full px-4 py-2 border ${apiError.dateEval ? 'border-red-300' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]`}
+              value={formData.dateEval}
+              onChange={handleChange}
+              disabled={loading}
               required
             />
+            {apiError.dateEval && (
+              <p className="mt-1 text-sm text-red-600">{apiError.dateEval}</p>
+            )}
           </div>
           
+          {/* Sélection de l'étudiant */}
           <div>
             <label htmlFor="studentId" className="block text-sm font-medium text-gray-700 mb-1">
               Étudiant *
             </label>
             <select
               id="studentId"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-              value={studentId}
-              onChange={(e) => setStudentId(Number(e.target.value))}
+              name="studentId"
+              className={`w-full px-4 py-2 border ${apiError.studentId ? 'border-red-300' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]`}
+              value={formData.studentId}
+              onChange={handleChange}
+              disabled={loading}
               required
             >
               <option value="">Sélectionner un étudiant</option>
@@ -267,6 +345,9 @@ export default function CreateEvaluationPage() {
                 </option>
               ))}
             </select>
+            {apiError.studentId && (
+              <p className="mt-1 text-sm text-red-600">{apiError.studentId}</p>
+            )}
             {students.length === 0 && (
               <p className="mt-2 text-sm text-orange-600">
                 Aucun étudiant disponible. Veuillez contacter l'administrateur.
@@ -274,15 +355,18 @@ export default function CreateEvaluationPage() {
             )}
           </div>
           
+          {/* Sélection du barème */}
           <div>
             <label htmlFor="scaleId" className="block text-sm font-medium text-gray-700 mb-1">
               Barème *
             </label>
             <select
               id="scaleId"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-              value={scaleId}
-              onChange={(e) => setScaleId(Number(e.target.value))}
+              name="scaleId"
+              className={`w-full px-4 py-2 border ${apiError.scaleId ? 'border-red-300' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]`}
+              value={formData.scaleId}
+              onChange={handleChange}
+              disabled={loading}
               required
             >
               <option value="">Sélectionner un barème</option>
@@ -292,11 +376,14 @@ export default function CreateEvaluationPage() {
                 </option>
               ))}
             </select>
+            {apiError.scaleId && (
+              <p className="mt-1 text-sm text-red-600">{apiError.scaleId}</p>
+            )}
             {scales.length === 0 ? (
               <p className="mt-2 text-sm text-orange-600">
                 Vous n'avez pas encore créé de barème. <Link href="/scales/create" className="text-blue-600 hover:underline">Créer un barème</Link>
               </p>
-            ) : scaleId === '' && (
+            ) : !formData.scaleId && (
               <p className="mt-2 text-sm text-gray-500">
                 Veuillez sélectionner un barème pour cette évaluation.
               </p>
@@ -327,7 +414,7 @@ export default function CreateEvaluationPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedScale.criteria.map((criteria: Criteria | FallbackCriteria) => (
+                      {selectedScale.criteria.map((criteria) => (
                         <tr key={criteria.id} className="border-t border-gray-200">
                           <td className="px-4 py-2">{criteria.description}</td>
                           <td className="px-4 py-2">{criteria.associatedSkill}</td>
@@ -345,6 +432,7 @@ export default function CreateEvaluationPage() {
           </div>
         )}
         
+        {/* Buttons d'action */}
         <div className="flex justify-end space-x-4 pt-4">
           <Link
             href="/evaluations"
@@ -355,10 +443,18 @@ export default function CreateEvaluationPage() {
           
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || students.length === 0 || scales.length === 0}
             className="bg-[#138784] text-white px-6 py-2 rounded-md hover:bg-[#0c6460] disabled:opacity-50"
           >
-            {loading ? 'Création en cours...' : 'Créer l\'évaluation'}
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Création en cours...
+              </>
+            ) : 'Créer l\'évaluation'}
           </button>
         </div>
       </form>

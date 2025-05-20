@@ -116,13 +116,14 @@ export default function CreateScalePage() {
                 Titre du barème *
               </label>
               <input
-                type="text"
-                id="title"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-              />
+              type="text"
+              id="title"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
+              style={{ backgroundColor: 'white', color: 'black' }}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
             </div>
             
             <div>

@@ -2,13 +2,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserGroupIcon, DocumentTextIcon, ClockIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, ClockIcon, ChatBubbleLeftIcon } from '@heroicons/react/24/outline';
 import evaluationService, { Evaluation } from '../../services/evaluationService';
 import Link from 'next/link';
+import LoadingSpinner from '../ui/LoadingSpinner';
+import { useAuth } from '../../lib/auth';
 
 export default function TeacherDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState({
-    activeClasses: 0,
     ongoingEvaluations: 0,
     pendingEvaluations: 0,
     unreadMessages: 0
@@ -27,18 +29,17 @@ export default function TeacherDashboard() {
         const evaluations = await evaluationService.getEvaluations();
         
         // Calculer les statistiques
-        const ongoing = evaluations.filter(e => e.status === 'draft').length;
+        const ongoing = evaluations.filter(evaluation => evaluation.status === 'draft').length;
         
         // Correction pour éviter l'erreur TypeScript
-        const toGrade = evaluations.filter(e => {
+        const toGrade = evaluations.filter(evaluation => {
           // Vérifier si grades existe et si sa longueur est inférieure au nombre de critères
-          const gradesCount = e.grades?.length || 0;
-          const criteriaCount = e.scale?.criteria?.length || 0;
-          return e.status === 'draft' && gradesCount < criteriaCount && criteriaCount > 0;
+          const gradesCount = evaluation.grades?.length || 0;
+          const criteriaCount = evaluation.scale?.criteria?.length || 0;
+          return evaluation.status === 'draft' && gradesCount < criteriaCount && criteriaCount > 0;
         }).length;
         
         setStats({
-          activeClasses: 4, // Placeholder - à remplacer par une vraie API
           ongoingEvaluations: ongoing,
           pendingEvaluations: toGrade,
           unreadMessages: 3 // Placeholder - à remplacer par une vraie API
@@ -61,17 +62,8 @@ export default function TeacherDashboard() {
     fetchDashboardData();
   }, []);
 
-  // Le reste du code reste identique...
-  
   // Définition des cartes statistiques
   const statCards = [
-    {
-      title: 'Classes actives',
-      value: stats.activeClasses,
-      icon: <UserGroupIcon className="h-16 w-16 text-blue-500" />,
-      color: 'blue',
-      link: '/classes'
-    },
     {
       title: 'Évaluations en cours',
       value: stats.ongoingEvaluations,
@@ -96,11 +88,7 @@ export default function TeacherDashboard() {
   ];
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#138784]"></div>
-      </div>
-    );
+    return <LoadingSpinner size="lg" text="Chargement du tableau de bord..." />;
   }
 
   if (error) {
@@ -114,14 +102,15 @@ export default function TeacherDashboard() {
   return (
     <div className="space-y-8">
       {/* Cartes statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {statCards.map((card, index) => (
           <Link href={card.link} key={index} className="block">
             <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow duration-300 h-full">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-gray-500 text-base">{card.title}</h3>
-                  <p className="text-5xl font-bold mt-3 mb-2">{card.value}</p>
+                  {/* Utilisation de la couleur de l'École 89 pour une meilleure visibilité */}
+                  <p className="text-5xl font-bold mt-3 mb-2 text-[#138784]">{card.value}</p>
                 </div>
                 <div>
                   {card.icon}
@@ -135,7 +124,8 @@ export default function TeacherDashboard() {
       {/* Évaluations récentes */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Évaluations récentes</h2>
+          {/* Rendre ce titre visible avec la couleur de l'École 89 */}
+          <h2 className="text-xl font-semibold text-[#138784]">Évaluations récentes</h2>
           <Link href="/evaluations" className="text-[#138784] hover:underline">
             Voir toutes
           </Link>
@@ -162,10 +152,10 @@ export default function TeacherDashboard() {
                         {evaluation.title}
                       </Link>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-800">
                       {evaluation.student?.name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-800">
                       {new Date(evaluation.dateEval).toLocaleDateString('fr-FR')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -185,9 +175,10 @@ export default function TeacherDashboard() {
         )}
       </div>
       
-      {/* Section supplémentaire - À faire */}
+      {/* Section À faire cette semaine */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">À faire cette semaine</h2>
+        {/* Rendre ce titre visible avec la couleur de l'École 89 */}
+        <h2 className="text-xl font-semibold mb-4 text-[#138784]">À faire cette semaine</h2>
         <div className="space-y-4">
           <div className="flex items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
             <div className="mr-4 bg-orange-100 p-2 rounded-full">
@@ -196,16 +187,6 @@ export default function TeacherDashboard() {
             <div>
               <p className="font-medium">Évaluations à terminer</p>
               <p className="text-sm text-gray-600">Vous avez {stats.pendingEvaluations} évaluations à noter</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
-            <div className="mr-4 bg-blue-100 p-2 rounded-full">
-              <UserGroupIcon className="h-6 w-6 text-blue-500" />
-            </div>
-            <div>
-              <p className="font-medium">Cours à venir</p>
-              <p className="text-sm text-gray-600">Prochain cours: Web Frontend le 29 mars</p>
             </div>
           </div>
           
