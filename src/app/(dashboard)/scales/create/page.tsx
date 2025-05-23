@@ -74,7 +74,7 @@ export default function CreateScalePage() {
       const scaleData: NewScale = {
         title,
         description,
-        criteria // Ceci est maintenant compatible avec NewCriteria[]
+        criteria
       };
       
       await scaleService.createScale(scaleData);
@@ -89,14 +89,16 @@ export default function CreateScalePage() {
 
   // Calculer le total des coefficients
   const totalCoefficient = criteria.reduce((sum, c) => sum + c.coefficient, 0);
+  const remainingCoefficient = Math.max(0, 1 - totalCoefficient);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-2 mb-6">
-        <Link href="/scales" className="text-gray-600 hover:text-gray-900">
-          <ArrowLeftIcon className="h-5 w-5" />
+    <div className="max-w-4xl mx-auto">
+      {/* En-tête */}
+      <div className="flex items-center space-x-4 mb-8">
+        <Link href="/scales" className="text-gray-600 hover:text-gray-900 transition">
+          <ArrowLeftIcon className="h-6 w-6" />
         </Link>
-        <h1 className="text-2xl font-bold text-gray-800">Créer un nouveau barème</h1>
+        <h1 className="text-3xl font-bold text-gray-800">Créer un nouveau barème</h1>
       </div>
       
       {error && (
@@ -105,146 +107,172 @@ export default function CreateScalePage() {
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Informations du barème */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Informations générales</h2>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Informations générales */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+            <div className="w-8 h-8 bg-[#138784] text-white rounded-full flex items-center justify-center mr-3 text-sm font-bold">
+              1
+            </div>
+            Informations générales
+          </h2>
           
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                Titre du barème *
+              <label htmlFor="title" className="block text-sm font-semibold text-gray-800 mb-2">
+                Titre du barème <span className="text-red-500">*</span>
               </label>
               <input
-              type="text"
-              id="title"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-              style={{ backgroundColor: 'white', color: 'black' }}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
+                type="text"
+                id="title"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#138784] focus:border-[#138784] text-gray-800 placeholder-gray-500"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Évaluation de développement web"
+                required
+              />
             </div>
             
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="description" className="block text-sm font-semibold text-gray-800 mb-2">
                 Description
               </label>
               <textarea
                 id="description"
-                rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#138784] focus:border-[#138784] text-gray-800 placeholder-gray-500 resize-none"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                placeholder="Décrivez l'objectif et le contexte de ce barème d'évaluation..."
               ></textarea>
             </div>
           </div>
         </div>
         
-        {/* Critères du barème */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Critères d'évaluation</h2>
-            <div className="text-sm text-gray-500">
-              Total des coefficients: <span className={totalCoefficient > 1 ? 'text-red-600 font-bold' : ''}>{totalCoefficient.toFixed(2)}</span>/1.00
+        {/* Critères d'évaluation */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+              <div className="w-8 h-8 bg-[#138784] text-white rounded-full flex items-center justify-center mr-3 text-sm font-bold">
+                2
+              </div>
+              Critères d'évaluation
+            </h2>
+            <div className="text-sm">
+              <span className="text-gray-600">Total des coefficients: </span>
+              <span className={`font-bold ${totalCoefficient > 1 ? 'text-red-600' : totalCoefficient === 1 ? 'text-green-600' : 'text-amber-600'}`}>
+                {totalCoefficient.toFixed(2)}/1.00
+              </span>
             </div>
           </div>
           
           {/* Liste des critères ajoutés */}
           {criteria.length > 0 && (
-            <div className="mb-6 overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Compétence</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Max points</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Coefficient</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {criteria.map((criterion, index) => (
-                    <tr key={index}>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm">{criterion.description}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm">{criterion.associatedSkill}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-right">{criterion.maxPoints}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-right">{criterion.coefficient}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-right">
-                        <button
-                          type="button"
-                          onClick={() => removeCriteria(index)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <XMarkIcon className="h-5 w-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mb-6">
+              <div className="grid grid-cols-1 gap-4">
+                {criteria.map((criterion, index) => (
+                  <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-grow grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 uppercase mb-1">Description</p>
+                          <p className="text-gray-800 font-medium">{criterion.description}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 uppercase mb-1">Compétence</p>
+                          <p className="text-gray-800">{criterion.associatedSkill}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 uppercase mb-1">Points max</p>
+                          <p className="text-gray-800 font-semibold">{criterion.maxPoints}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 uppercase mb-1">Coefficient</p>
+                          <p className="text-gray-800 font-semibold">{criterion.coefficient}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeCriteria(index)}
+                        className="ml-4 p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition"
+                        title="Supprimer ce critère"
+                      >
+                        <XMarkIcon className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           
           {/* Formulaire d'ajout de critère */}
-          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h3 className="text-lg font-medium mb-3">Ajouter un critère</h3>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <PlusIcon className="h-5 w-5 mr-2 text-[#138784]" />
+              Ajouter un critère
+            </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
-                <label htmlFor="criteriaDescription" className="block text-sm font-medium text-gray-700 mb-1">
-                  Description *
+                <label htmlFor="criteriaDescription" className="block text-sm font-semibold text-gray-800 mb-2">
+                  Description <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   id="criteriaDescription"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#138784] focus:border-[#138784] placeholder-gray-500"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="Ex: Qualité du code"
                 />
               </div>
               
               <div>
-                <label htmlFor="associatedSkill" className="block text-sm font-medium text-gray-700 mb-1">
-                  Compétence associée *
+                <label htmlFor="associatedSkill" className="block text-sm font-semibold text-gray-800 mb-2">
+                  Compétence associée <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   id="associatedSkill"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#138784] focus:border-[#138784] placeholder-gray-500"
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
+                  placeholder="Ex: Développement"
                 />
               </div>
               
               <div>
-                <label htmlFor="maxPoints" className="block text-sm font-medium text-gray-700 mb-1">
-                  Points maximum *
+                <label htmlFor="maxPoints" className="block text-sm font-semibold text-gray-800 mb-2">
+                  Points maximum <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
                   id="maxPoints"
                   min="1"
                   step="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#138784] focus:border-[#138784]"
                   value={newMaxPoints || ''}
                   onChange={(e) => setNewMaxPoints(Number(e.target.value))}
+                  placeholder="Ex: 20"
                 />
               </div>
               
               <div>
-                <label htmlFor="coefficient" className="block text-sm font-medium text-gray-700 mb-1">
-                  Coefficient * (max: {(1 - totalCoefficient).toFixed(2)})
+                <label htmlFor="coefficient" className="block text-sm font-semibold text-gray-800 mb-2">
+                  Coefficient <span className="text-red-500">*</span>
+                  <span className="text-xs text-gray-600 ml-1">(max: {remainingCoefficient.toFixed(2)})</span>
                 </label>
                 <input
                   type="number"
                   id="coefficient"
                   min="0.01"
-                  max={1 - totalCoefficient}
+                  max={remainingCoefficient}
                   step="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#138784] focus:border-[#138784]"
                   value={newCoefficient || ''}
                   onChange={(e) => setNewCoefficient(Number(e.target.value))}
+                  placeholder="Ex: 0.3"
                 />
               </div>
             </div>
@@ -253,7 +281,8 @@ export default function CreateScalePage() {
               <button
                 type="button"
                 onClick={addCriteria}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md flex items-center space-x-2 hover:bg-blue-700"
+                disabled={remainingCoefficient <= 0}
+                className="bg-[#138784] text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-[#0c6460] disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
               >
                 <PlusIcon className="h-5 w-5" />
                 <span>Ajouter ce critère</span>
@@ -263,18 +292,18 @@ export default function CreateScalePage() {
         </div>
         
         {/* Boutons d'action */}
-        <div className="flex justify-end space-x-4">
+        <div className="flex justify-end space-x-4 pb-8">
           <Link
             href="/scales"
-            className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium"
           >
             Annuler
           </Link>
           
           <button
             type="submit"
-            disabled={loading}
-            className="bg-[#138784] text-white px-6 py-2 rounded-md hover:bg-[#0c6460] disabled:opacity-50"
+            disabled={loading || criteria.length === 0 || totalCoefficient !== 1}
+            className="bg-[#138784] text-white px-8 py-3 rounded-lg hover:bg-[#0c6460] disabled:opacity-50 disabled:cursor-not-allowed transition font-medium"
           >
             {loading ? 'Création en cours...' : 'Créer le barème'}
           </button>

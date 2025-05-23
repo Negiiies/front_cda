@@ -1,4 +1,4 @@
-// src/app/(dashboard)/evaluations/[id]/page.tsx - version améliorée
+// src/app/(dashboard)/evaluations/[id]/page.tsx - version compacte
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +6,19 @@ import { useAuth } from '../../../../lib/auth';
 import evaluationService, { Evaluation, Grade } from '../../../../services/evaluationService';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ClockIcon, CheckCircleIcon, UserIcon, AcademicCapIcon, ArchiveBoxIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { 
+  ClockIcon, 
+  CheckCircleIcon, 
+  UserIcon, 
+  AcademicCapIcon, 
+  ArchiveBoxIcon, 
+  PencilIcon,
+  ArrowLeftIcon,
+  DocumentTextIcon,
+  ChatBubbleLeftIcon,
+  ExclamationCircleIcon,
+  TrophyIcon
+} from '@heroicons/react/24/outline';
 import { useNotification } from '../../../../contexts/NotificationContext';
 
 export default function EvaluationDetailPage() {
@@ -44,12 +56,10 @@ export default function EvaluationDetailPage() {
     try {
       setChangingStatus(true);
       
-      // Si on publie, vérifier d'abord que toutes les compétences ont des notes
       if (newStatus === 'published') {
         const criteria = evaluation?.scale?.criteria || [];
         const grades = evaluation?.grades || [];
         
-        // Vérifier que chaque critère a une note
         const allCriteriaGraded = criteria.every(criterion => 
           grades.some(grade => grade.criteriaId === criterion.id)
         );
@@ -84,7 +94,6 @@ export default function EvaluationDetailPage() {
       setSubmittingComment(true);
       const newComment = await evaluationService.addComment(evaluationId, commentText);
       
-      // Mettre à jour l'évaluation avec le nouveau commentaire
       setEvaluation(prev => {
         if (!prev) return prev;
         const updatedComments = [...(prev.comments || []), newComment];
@@ -111,16 +120,21 @@ export default function EvaluationDetailPage() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-        {error}
+      <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+        <div className="flex">
+          <ExclamationCircleIcon className="h-5 w-5 text-red-400 mr-3 mt-0.5" />
+          <div>
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!evaluation) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg mb-6">
-        Évaluation non trouvée.
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+        <p className="text-sm text-yellow-700">Évaluation non trouvée.</p>
       </div>
     );
   }
@@ -135,10 +149,11 @@ export default function EvaluationDetailPage() {
   // Calculer la note totale
   const totalPoints = evaluation.grades?.reduce((sum, grade) => sum + grade.value, 0) || 0;
   const maxPoints = evaluation.scale?.criteria?.reduce((sum, criteria) => sum + criteria.maxPoints, 0) || 0;
+  const percentage = maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 0;
 
   return (
     <div className="space-y-6">
-      {/* Entête avec les actions */}
+      {/* Header compact */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">{evaluation.title}</h1>
@@ -148,7 +163,7 @@ export default function EvaluationDetailPage() {
         </div>
         
         <div className="flex items-center space-x-3">
-          {/* Statut */}
+          {/* Badge de statut */}
           <span className={`px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full
             ${evaluation.status === 'published' ? 'bg-green-100 text-green-800' : 
               evaluation.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : 
@@ -157,7 +172,7 @@ export default function EvaluationDetailPage() {
              evaluation.status === 'draft' ? 'Brouillon' : 'Archivée'}
           </span>
           
-          {/* Boutons d'action pour le professeur */}
+          {/* Boutons d'action */}
           {isTeacherOfEvaluation && (
             <div className="flex space-x-2">
               {canPublish && (
@@ -167,18 +182,7 @@ export default function EvaluationDetailPage() {
                   className="bg-green-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-green-700 disabled:opacity-50"
                 >
                   <CheckCircleIcon className="h-4 w-4" />
-                  <span>{changingStatus ? 'Publication...' : 'Publier'}</span>
-                </button>
-              )}
-              
-              {canArchive && (
-                <button
-                  onClick={() => handleChangeStatus('archived')}
-                  disabled={changingStatus}
-                  className="bg-gray-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-gray-700 disabled:opacity-50"
-                >
-                  <ArchiveBoxIcon className="h-4 w-4" />
-                  <span>{changingStatus ? 'Archivage...' : 'Archiver'}</span>
+                  <span>Publier</span>
                 </button>
               )}
               
@@ -191,161 +195,198 @@ export default function EvaluationDetailPage() {
                   <span>Modifier</span>
                 </Link>
               )}
+              
+              {canArchive && (
+                <button
+                  onClick={() => handleChangeStatus('archived')}
+                  disabled={changingStatus}
+                  className="bg-gray-600 text-white px-3 py-1 rounded-md flex items-center space-x-1 text-sm hover:bg-gray-700 disabled:opacity-50"
+                >
+                  <ArchiveBoxIcon className="h-4 w-4" />
+                  <span>Archiver</span>
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
-      
-      {/* Informations principales */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Colonne 1: Informations générales */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Informations</h2>
-          
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <AcademicCapIcon className="h-5 w-5 text-[#138784]" />
-              <div>
-                <p className="text-sm text-gray-500">Professeur</p>
-                <p className="font-medium">{evaluation.teacher?.name}</p>
+
+      {/* Layout en colonnes puis commentaires en bas */}
+      <div className="space-y-6">
+        {/* Première ligne : Informations + Notes */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Colonne 1: Informations */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <DocumentTextIcon className="h-5 w-5 text-blue-600" />
               </div>
+              <h2 className="text-lg font-semibold text-gray-900">Informations</h2>
             </div>
             
-            <div className="flex items-center space-x-3">
-              <UserIcon className="h-5 w-5 text-[#138784]" />
-              <div>
-                <p className="text-sm text-gray-500">Étudiant</p>
-                <p className="font-medium">{evaluation.student?.name}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <ClockIcon className="h-5 w-5 text-[#138784]" />
-              <div>
-                <p className="text-sm text-gray-500">Créée le</p>
-                <p className="font-medium">{new Date(evaluation.createdAt).toLocaleDateString('fr-FR')}</p>
-              </div>
-            </div>
-          </div>
-          
-          {canGrade && (
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <Link
-                href={`/evaluations/${evaluationId}/grade`}
-                className="w-full block text-center bg-[#138784] text-white px-4 py-2 rounded-md hover:bg-[#0c6460]"
-              >
-                Attribuer des notes
-              </Link>
-            </div>
-          )}
-        </div>
-        
-        {/* Colonne 2: Barème et notes */}
-        <div className="bg-white rounded-lg shadow p-6 md:col-span-2">
-          <h2 className="text-xl font-semibold mb-4">Notes</h2>
-          
-          {!evaluation.grades || evaluation.grades.length === 0 ? (
-            <p className="text-gray-500">Aucune note disponible pour le moment.</p>
-          ) : (
             <div className="space-y-4">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Critère</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Compétence</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Note</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Max</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {evaluation.grades.map((grade) => (
-                      <tr key={grade.id}>
-                        <td className="px-4 py-2 text-sm">{grade.criteria?.description}</td>
-                        <td className="px-4 py-2 text-sm">{grade.criteria?.associatedSkill}</td>
-                        <td className="px-4 py-2 text-sm text-right font-medium">{grade.value}</td>
-                        <td className="px-4 py-2 text-sm text-right text-gray-500">{grade.criteria?.maxPoints}</td>
-                      </tr>
-                    ))}
-                    <tr className="bg-gray-50">
-                      <td colSpan={2} className="px-4 py-2 text-sm font-bold">Total</td>
-                      <td className="px-4 py-2 text-sm text-right font-bold">{totalPoints}</td>
-                      <td className="px-4 py-2 text-sm text-right font-bold">{maxPoints}</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <AcademicCapIcon className="h-4 w-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Professeur</p>
+                  <p className="font-medium text-sm">{evaluation.teacher?.name}</p>
+                </div>
               </div>
               
-              {/* Barre de progression (facultatif) */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Score: {totalPoints}/{maxPoints}</span>
-                  <span>{Math.round((totalPoints / maxPoints) * 100)}%</span>
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                  <UserIcon className="h-4 w-4 text-purple-600" />
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-[#138784] h-2.5 rounded-full" 
-                    style={{ width: `${Math.min(100, Math.round((totalPoints / maxPoints) * 100))}%` }}
-                  ></div>
+                <div>
+                  <p className="text-xs text-gray-500">Étudiant</p>
+                  <p className="font-medium text-sm">{evaluation.student?.name}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                  <ClockIcon className="h-4 w-4 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Créée le</p>
+                  <p className="font-medium text-sm">{new Date(evaluation.createdAt).toLocaleDateString('fr-FR')}</p>
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Section commentaires */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Commentaires</h2>
-        
-        {/* Formulaire d'ajout de commentaire (uniquement pour les professeurs) */}
-        {isTeacherOfEvaluation && (
-          <form onSubmit={handleAddComment} className="mb-6">
-            <div className="mb-3">
-              <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784]"
-                rows={3}
-                placeholder="Ajouter un commentaire..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                required
-              ></textarea>
+            
+            {canGrade && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <Link
+                  href={`/evaluations/${evaluationId}/grade`}
+                  className="w-full block text-center bg-[#138784] text-white px-4 py-2 rounded-md hover:bg-[#0c6460] text-sm font-medium"
+                >
+                  Attribuer des notes
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Colonne 2: Notes */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                <TrophyIcon className="h-5 w-5 text-indigo-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-900">Notes</h2>
             </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={submittingComment || !commentText.trim()}
-                className="bg-[#138784] text-white px-4 py-2 rounded-md hover:bg-[#0c6460] disabled:opacity-50"
-              >
-                {submittingComment ? 'Envoi en cours...' : 'Ajouter un commentaire'}
-              </button>
-            </div>
-          </form>
-        )}
-        
-        {/* Liste des commentaires */}
-        <div className="space-y-4">
-          {!evaluation.comments || evaluation.comments.length === 0 ? (
-            <p className="text-gray-500">Aucun commentaire pour le moment.</p>
-          ) : (
-            evaluation.comments.map((comment) => (
-              <div key={comment.id} className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="font-medium">{comment.teacher?.name}</div>
-                  <div className="text-xs text-gray-500">
-                    {new Date(comment.createdAt).toLocaleDateString('fr-FR', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+            
+            {!evaluation.grades || evaluation.grades.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-gray-500 text-sm">Aucune note disponible pour le moment.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Score global en haut */}
+                {totalPoints > 0 && (
+                  <div className="bg-white rounded-lg p-3 mb-4 border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Score total</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xl font-bold text-gray-900">{totalPoints}</span>
+                        <span className="text-gray-500 text-sm">/ {maxPoints}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          percentage >= 70 ? 'bg-green-100 text-green-800' :
+                          percentage >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {percentage}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <p className="text-gray-700">{comment.text}</p>
+                )}
+                
+                {/* Liste des notes */}
+                {evaluation.grades.map((grade, index) => (
+                  <div key={grade.id} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 flex-1">
+                      <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-medium text-xs">{index + 1}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm text-gray-900 truncate">{grade.criteria?.description}</p>
+                        <p className="text-xs text-gray-500 truncate">{grade.criteria?.associatedSkill}</p>
+                      </div>
+                    </div>
+                    <div className="text-right ml-2">
+                      <div className="flex items-baseline space-x-1">
+                        <span className="text-lg font-bold text-gray-900">{grade.value}</span>
+                        <span className="text-gray-500 text-xs">/{grade.criteria?.maxPoints}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))
+            )}
+          </div>
+        </div>
+
+        {/* Deuxième ligne : Commentaires en pleine largeur */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
+              <ChatBubbleLeftIcon className="h-5 w-5 text-teal-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900">Commentaires</h2>
+          </div>
+          
+          {/* Formulaire d'ajout */}
+          {isTeacherOfEvaluation && (
+            <div className="mb-6">
+              <form onSubmit={handleAddComment} className="space-y-3">
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#138784] focus:border-[#138784] text-sm bg-white"
+                  style={{ backgroundColor: '#ffffff' }}
+                  rows={3}
+                  placeholder="Ajouter un commentaire..."
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  required
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={submittingComment || !commentText.trim()}
+                    className="bg-[#138784] text-white px-4 py-2 rounded-md hover:bg-[#0c6460] disabled:opacity-50 text-sm font-medium"
+                  >
+                    {submittingComment ? 'Envoi...' : 'Ajouter un commentaire'}
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
+          
+          {/* Liste des commentaires */}
+          <div className="space-y-4">
+            {!evaluation.comments || evaluation.comments.length === 0 ? (
+              <p className="text-gray-500 text-sm text-center py-6">Aucun commentaire pour le moment.</p>
+            ) : (
+              evaluation.comments.map((comment) => (
+                <div key={comment.id} className="bg-white p-4 rounded-lg border border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="font-medium text-sm">{comment.teacher?.name}</div>
+                    <div className="text-xs text-gray-500">
+                      {new Date(comment.createdAt).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  </div>
+                  <p className="text-gray-700 text-sm leading-relaxed">{comment.text}</p>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
