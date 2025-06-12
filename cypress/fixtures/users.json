@@ -1,0 +1,18 @@
+
+{
+    "admin": {
+      "email": "admin@school.com",
+      "password": "Admin@123",
+      "name": "Admin User"
+    },
+    "teacher": {
+      "email": "john.smith@school.com", 
+      "password": "Teacher1@123",
+      "name": "John Smith"
+    },
+    "student": {
+      "email": "alice.j@school.com",
+      "password": "Student1@123", 
+      "name": "Alice Johnson"
+    }
+  }

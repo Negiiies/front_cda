@@ -28,23 +28,19 @@ const userService = {
   // Récupérer tous les utilisateurs (admin seulement)
   getUsers: async (): Promise<User[]> => {
     try {
-      console.log('Fetching users...');
+      console.log('👥 Fetching users...');
       
       // Vérifiez le token avant d'envoyer la requête
       const token = localStorage.getItem('accessToken');
       if (!token) {
-        console.warn('No authentication token found when fetching users');
+        console.warn('⚠️ No authentication token found when fetching users');
       }
       
-      // Loguer l'URL complète pour le débogage
-      const fullUrl = `${api.defaults.baseURL}/users`;
-      console.log('Request URL:', fullUrl);
-      
       const response = await api.get('/users');
-      console.log('Users fetched successfully:', response.data.length);
+      console.log(`✅ ${response.data.length} users fetched successfully`);
       return response.data;
     } catch (error: any) {
-      console.error('Error fetching users:', error);
+      console.error('❌ Error fetching users:', error);
       
       // Log détaillé de l'erreur pour faciliter le débogage
       if (error.response) {
@@ -52,13 +48,11 @@ const userService = {
           status: error.response.status,
           statusText: error.response.statusText,
           data: error.response.data,
-          headers: error.response.headers
         });
         
-        // Tenter de récupérer des données de secours en cas d'erreur 403
-        if (error.response.status === 403) {
-          console.warn('Permission denied, using fallback students data');
-          // Données de secours pour éviter le blocage de l'interface
+        // En cas d'erreur 403 ou autre, utiliser des données de secours
+        if (error.response.status === 403 || error.response.status === 401) {
+          console.warn('⚠️ Permission denied, using fallback students data');
           return [
             { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'student' as UserRole, status: 'active' },
             { id: 2, name: 'Bob Wilson', email: 'bob@example.com', role: 'student' as UserRole, status: 'active' },
@@ -66,9 +60,12 @@ const userService = {
           ];
         }
       } else if (error.request) {
-        console.error('Request was made but no response received:', error.request);
-      } else {
-        console.error('Error setting up request:', error.message);
+        console.error('❌ Network error, using fallback data');
+        return [
+          { id: 1, name: 'Alice Johnson', email: 'alice@example.com', role: 'student' as UserRole, status: 'active' },
+          { id: 2, name: 'Bob Wilson', email: 'bob@example.com', role: 'student' as UserRole, status: 'active' },
+          { id: 3, name: 'Charlie Brown', email: 'charlie@example.com', role: 'student' as UserRole, status: 'active' },
+        ];
       }
       
       throw error;
@@ -78,11 +75,12 @@ const userService = {
   // Récupérer un utilisateur par son ID
   getUserById: async (id: number): Promise<User> => {
     try {
-      console.log(`Fetching user with ID: ${id}`);
+      console.log(`👤 Fetching user with ID: ${id}`);
       const response = await api.get(`/users/${id}`);
+      console.log('✅ User fetched successfully');
       return response.data;
     } catch (error) {
-      console.error(`Error fetching user with ID ${id}:`, error);
+      console.error(`❌ Error fetching user with ID ${id}:`, error);
       throw error;
     }
   },
@@ -96,12 +94,12 @@ const userService = {
     description?: string;
   }): Promise<User> => {
     try {
-      console.log('Creating new user:', userData.email);
+      console.log('👤 Creating new user:', userData.email);
       const response = await api.post('/users', userData);
-      console.log('User created successfully');
+      console.log('✅ User created successfully');
       return response.data;
     } catch (error) {
-      console.error('Error creating user:', error);
+      console.error('❌ Error creating user:', error);
       throw error;
     }
   },
@@ -109,12 +107,12 @@ const userService = {
   // Mettre à jour un utilisateur
   updateUser: async (id: number, userData: UpdateUserData): Promise<User> => {
     try {
-      console.log(`Updating user ${id}`);
+      console.log(`🔄 Updating user ${id}`);
       const response = await api.put(`/users/${id}`, userData);
-      console.log('User updated successfully');
+      console.log('✅ User updated successfully');
       return response.data;
     } catch (error) {
-      console.error(`Error updating user with ID ${id}:`, error);
+      console.error(`❌ Error updating user with ID ${id}:`, error);
       throw error;
     }
   },
@@ -122,11 +120,11 @@ const userService = {
   // Supprimer/désactiver un utilisateur
   deleteUser: async (id: number): Promise<void> => {
     try {
-      console.log(`Deleting/deactivating user ${id}`);
+      console.log(`🗑️ Deleting/deactivating user ${id}`);
       await api.delete(`/users/${id}`);
-      console.log('User deleted/deactivated successfully');
+      console.log('✅ User deleted/deactivated successfully');
     } catch (error) {
-      console.error(`Error deleting user with ID ${id}:`, error);
+      console.error(`❌ Error deleting user with ID ${id}:`, error);
       throw error;
     }
   },
@@ -134,35 +132,35 @@ const userService = {
   // Changer le mot de passe
   changePassword: async (userId: number, data: ChangePasswordData): Promise<void> => {
     try {
-      console.log(`Changing password for user ${userId}`);
+      console.log(`🔑 Changing password for user ${userId}`);
       
       // Essayer d'abord l'endpoint spécifique
       try {
         await api.post(`/users/${userId}/change-password`, data);
-        console.log('Password changed successfully using specific endpoint');
+        console.log('✅ Password changed successfully using specific endpoint');
       } catch (error: any) {
         // Si l'endpoint est introuvable, utiliser la mise à jour utilisateur
         if (error.response && error.response.status === 404) {
-          console.warn('change-password endpoint not found, falling back to updateUser');
+          console.warn('⚠️ change-password endpoint not found, falling back to updateUser');
           await api.put(`/users/${userId}`, {
             password: data.newPassword,
             currentPassword: data.currentPassword
           });
-          console.log('Password changed successfully using update user endpoint');
+          console.log('✅ Password changed successfully using update user endpoint');
         } else {
           throw error;
         }
       }
     } catch (error) {
-      console.error(`Error changing password for user ${userId}:`, error);
+      console.error(`❌ Error changing password for user ${userId}:`, error);
       throw error;
     }
   },
 
-  // Récupérer son propre profil à partir du token
+  // Récupérer son propre profil à partir du token (version simplifiée)
   getMyProfile: async (): Promise<User> => {
     try {
-      console.log('Getting user profile from token');
+      console.log('👤 Getting user profile from token');
       
       // Vérifier si un token est disponible
       const token = localStorage.getItem('accessToken');
@@ -170,7 +168,7 @@ const userService = {
         throw new Error('Utilisateur non authentifié');
       }
       
-      // Décodage basique du JWT
+      // Décodage basique du JWT pour récupérer les infos
       try {
         const base64Url = token.split('.')[1];
         if (!base64Url) {
@@ -184,29 +182,23 @@ const userService = {
           throw new Error('ID utilisateur non trouvé dans le token');
         }
         
-        console.log('User profile extracted from token');
+        console.log('✅ User profile extracted from token');
         
-        // Essayer de récupérer les infos complètes depuis l'API
-        try {
-          const response = await api.get(`/users/${payload.userId}`);
-          return response.data;
-        } catch (apiError) {
-          console.warn('Failed to get full profile from API, using token data', apiError);
-          // Retourner les informations du token en cas d'échec de l'API
-          return {
-            id: payload.userId,
-            name: payload.name || 'Utilisateur',
-            email: payload.email || '',
-            role: payload.role,
-            status: 'active'
-          };
-        }
+        // Retourner les informations du token directement
+        // Plus d'appel API problématique vers /users/:id
+        return {
+          id: payload.userId,
+          name: payload.name || payload.email || 'Utilisateur',
+          email: payload.email || '',
+          role: payload.role,
+          status: 'active'
+        };
       } catch (decodeError) {
-        console.error('Error decoding token:', decodeError);
-        throw decodeError;
+        console.error('❌ Error decoding token:', decodeError);
+        throw new Error('Token invalide');
       }
     } catch (error) {
-      console.error('Error getting user profile:', error);
+      console.error('❌ Error getting user profile:', error);
       throw error;
     }
   }

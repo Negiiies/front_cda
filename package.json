@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start -p 3001",
+    "lint": "next lint",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "test:e2e": "cypress run",
+    "test:local": "start-server-and-test 'npm run dev' http://localhost:3001 'cypress run'",
+    "test:open": "start-server-and-test 'npm run dev' http://localhost:3001 'cypress open'"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
@@ -26,13 +31,16 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/cypress": "^1.1.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.21",
+    "cypress": "^14.4.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
     "postcss": "^8.5.3",
+    "start-server-and-test": "^2.0.12",
     "tailwindcss": "^4.1.7",
     "typescript": "^5"
   }

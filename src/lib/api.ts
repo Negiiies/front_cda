@@ -83,10 +83,13 @@ api.interceptors.request.use(
   async (config) => {
     // Ajouter le token d'authentification si disponible
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
       if (token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('🔐 Token ajouté:', token.substring(0, 20) + '...');
+      } else {
+        console.log('❌ Aucun token trouvé dans localStorage');
       }
     }
     
