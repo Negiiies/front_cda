@@ -5,7 +5,31 @@ import axios, {
   InternalAxiosRequestConfig
 } from 'axios';
 
-const BASE_URL = 'http://localhost/api';
+const getApiUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    // Browser environment - use current domain
+    const { protocol, hostname } = window.location;
+    
+    // If localhost development (your Windows machine)
+    if (hostname === 'localhost') {
+      return 'http://localhost/api'; // Your local Docker setup
+    }
+    
+    // If accessing via server IP
+    if (hostname === '138.197.185.211') {
+      return 'http://138.197.185.211/api';
+    }
+    
+    // Fallback for any other domain
+    return `${protocol}//${hostname}/api`;
+  }
+  
+  // Fallback for SSR
+  return 'http://localhost/api';
+};
+
+const BASE_URL = getApiUrl();
+console.log('🔍 Frontend API BASE_URL:', BASE_URL);
 
 // Cache pour stocker le token CSRF (toujours une chaîne, jamais null)
 let csrfTokenCache: string = '';
