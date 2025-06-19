@@ -5,7 +5,7 @@ import axios, {
   InternalAxiosRequestConfig
 } from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const BASE_URL = 'http://localhost/api';
 
 // Cache pour stocker le token CSRF (toujours une chaîne, jamais null)
 let csrfTokenCache: string = '';
