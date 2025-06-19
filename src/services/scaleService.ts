@@ -191,7 +191,14 @@ const scaleService = {
   createCriteria: async (scaleId: number, criteriaData: Omit<Criteria, 'id' | 'scaleId' | 'createdAt' | 'updatedAt'>): Promise<Criteria> => {
     try {
       console.log(`Creating new criteria for scale ${scaleId}:`, criteriaData);
-      const response = await api.post(`/scales/${scaleId}/criteria`, criteriaData);
+      
+      // 🔧 CORRECTION : Ajouter le scaleId dans le body car le validator l'attend
+      const dataWithScaleId = {
+        ...criteriaData,
+        scaleId: scaleId
+      };
+      
+      const response = await api.post(`/scales/${scaleId}/criteria`, dataWithScaleId);
       console.log('Criteria created successfully');
       return response.data;
     } catch (error) {
@@ -200,10 +207,11 @@ const scaleService = {
     }
   },
 
-  updateCriteria: async (criteriaId: number, criteriaData: Partial<Criteria>): Promise<Criteria> => {
+  // 🔧 CORRECTION PRINCIPALE : Ajouter le scaleId en paramètre
+  updateCriteria: async (scaleId: number, criteriaId: number, criteriaData: Partial<Criteria>): Promise<Criteria> => {
     try {
-      console.log(`Updating criteria ${criteriaId}:`, criteriaData);
-      const response = await api.put(`/criteria/${criteriaId}`, criteriaData);
+      console.log(`Updating criteria ${criteriaId} for scale ${scaleId}:`, criteriaData);
+      const response = await api.put(`/scales/${scaleId}/criteria/${criteriaId}`, criteriaData);
       console.log('Criteria updated successfully');
       return response.data;
     } catch (error) {
@@ -212,10 +220,11 @@ const scaleService = {
     }
   },
 
-  deleteCriteria: async (criteriaId: number): Promise<void> => {
+  // 🔧 CORRECTION PRINCIPALE : Ajouter le scaleId en paramètre  
+  deleteCriteria: async (scaleId: number, criteriaId: number): Promise<void> => {
     try {
-      console.log(`Deleting criteria ${criteriaId}`);
-      await api.delete(`/criteria/${criteriaId}`);
+      console.log(`Deleting criteria ${criteriaId} from scale ${scaleId}`);
+      await api.delete(`/scales/${scaleId}/criteria/${criteriaId}`);
       console.log('Criteria deleted successfully');
     } catch (error) {
       console.error(`Error deleting criteria with ID ${criteriaId}:`, error);

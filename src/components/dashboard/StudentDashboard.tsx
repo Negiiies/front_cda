@@ -116,10 +116,10 @@ export default function StudentDashboard() {
 
   // Fonction pour obtenir une classe de couleur en fonction du score
   const getScoreColorClass = (score: number) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-blue-600';
-    if (score >= 40) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 80) return 'text-green-600 font-bold';
+    if (score >= 60) return 'text-blue-600 font-bold';
+    if (score >= 40) return 'text-yellow-600 font-bold';
+    return 'text-red-600 font-bold';
   };
 
   // Récupérer les 5 dernières évaluations
@@ -132,18 +132,22 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" style={{ color: '#111827', opacity: 1 }}>
       {/* Cartes statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card, index) => (
           <Link href={card.link} key={index} className="block">
-            <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow duration-300">
+            <div className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow duration-300" style={{ backgroundColor: '#ffffff' }}>
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-gray-500 text-sm">{card.title}</h3>
+                  <h3 className="text-gray-600 text-sm font-medium" style={{ color: '#6b7280', opacity: 1 }}>
+                    {card.title}
+                  </h3>
                   <p className={`text-4xl font-bold mt-2 ${
-                    card.title === 'Note moyenne' ? getScoreColorClass(stats.averageScore) : ''
-                  }`}>{card.value}</p>
+                    card.title === 'Note moyenne' ? getScoreColorClass(stats.averageScore) : 'text-gray-900'
+                  }`} style={{ opacity: 1 }}>
+                    {card.value}
+                  </p>
                 </div>
                 <div>
                   {card.icon}
@@ -155,15 +159,17 @@ export default function StudentDashboard() {
       </div>
       
       {/* Graphique de progression - Placeholder */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6" style={{ backgroundColor: '#ffffff' }}>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Ma progression</h2>
-          <Link href="/student/performance" className="text-[#138784] hover:underline text-sm">
+          <h2 className="text-xl font-semibold" style={{ color: '#138784', opacity: 1 }}>
+            Ma progression
+          </h2>
+          <Link href="/student/performance" className="text-[#138784] hover:underline text-sm font-medium" style={{ color: '#138784', opacity: 1 }}>
             Voir toutes les statistiques
           </Link>
         </div>
         <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200">
-          <p className="text-gray-500">
+          <p className="text-gray-600 font-medium" style={{ color: '#6b7280', opacity: 1 }}>
             Le graphique de progression sera disponible prochainement.
           </p>
         </div>
@@ -172,44 +178,56 @@ export default function StudentDashboard() {
       {/* Tableau des évaluations récentes */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Évaluations récentes</h2>
-          <Link href="/evaluations" className="text-[#138784] hover:underline text-sm">
+          <h2 className="text-xl font-semibold" style={{ color: '#138784', opacity: 1 }}>
+            Évaluations récentes
+          </h2>
+          <Link href="/evaluations" className="text-[#138784] hover:underline text-sm font-medium" style={{ color: '#138784', opacity: 1 }}>
             Voir toutes les évaluations
           </Link>
         </div>
         
         {error ? (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg" style={{ color: '#dc2626', opacity: 1 }}>
             {error}
           </div>
         ) : (
-          <StudentEvaluationsTable evaluations={recentEvaluations} />
+          <div style={{ color: '#111827', opacity: 1 }}>
+            <StudentEvaluationsTable evaluations={recentEvaluations} />
+          </div>
         )}
       </div>
       
       {/* Section d'alertes et conseils */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Conseils personnalisés</h2>
+      <div className="bg-white rounded-lg shadow p-6" style={{ backgroundColor: '#ffffff' }}>
+        <h2 className="text-xl font-semibold mb-4" style={{ color: '#138784', opacity: 1 }}>
+          Conseils personnalisés
+        </h2>
         <div className="space-y-4">
           {stats.averageScore < 60 ? (
             <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4">
-              <h3 className="font-medium text-yellow-800 mb-2">Attention à votre moyenne</h3>
-              <p className="text-yellow-700 text-sm">
+              <h3 className="font-medium text-yellow-800 mb-2" style={{ color: '#92400e', opacity: 1 }}>
+                Attention à votre moyenne
+              </h3>
+              <p className="text-yellow-700 text-sm" style={{ color: '#b45309', opacity: 1 }}>
                 Votre note moyenne est en dessous de 60%. Pensez à revoir vos points faibles et à demander de l'aide à vos professeurs.
               </p>
             </div>
           ) : (
             <div className="bg-green-50 border border-green-100 rounded-lg p-4">
-              <h3 className="font-medium text-green-800 mb-2">Bon travail !</h3>
-              <p className="text-green-700 text-sm">
+              <h3 className="font-medium text-green-800 mb-2" style={{ color: '#065f46', opacity: 1 }}>
+                Bon travail !
+              </h3>
+              <p className="text-green-700 text-sm" style={{ color: '#047857', opacity: 1 }}>
                 Votre note moyenne est de {stats.averageScore}%. Continuez sur cette voie !
               </p>
             </div>
           )}
           
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-            <h3 className="font-medium text-blue-800 mb-2">Prochain cours</h3>
-            <p className="text-blue-700 text-sm">
+            <h3 className="font-medium text-blue-800 mb-2" style={{ color: '#1e40af', opacity: 1 }}>
+              Prochain cours
+            </h3>
+            <p className="text-blue-700 text-sm" style={{ color: '#1d4ed8', opacity: 1 }}>
               N'oubliez pas votre prochain cours de Développement Web, le 29 avril à 14h00.
             </p>
           </div>

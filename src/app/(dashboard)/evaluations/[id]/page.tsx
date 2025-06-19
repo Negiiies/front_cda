@@ -217,35 +217,51 @@ export default function EvaluationDetailPage() {
             console.error('❌ Erreur lors du chargement des critères:', loadError);
           }
         }
-
-        // ✅ ÉTAPE 4 CORRIGÉE: Recharger les notes pour s'assurer qu'elles sont à jour
+  
+        // ÉTAPE 4: Recharger les notes pour s'assurer qu'elles sont à jour
         try {
           console.log('📊 Rechargement des notes...');
           const freshGrades = await evaluationService.getGrades(evaluationId);
           
-          // Vérifier que freshGrades existe avant de l'assigner
           if (freshGrades && Array.isArray(freshGrades)) {
             evalData.grades = freshGrades;
             console.log('✅ Notes rechargées:', freshGrades.length, 'notes');
           } else {
-            // S'assurer que grades est un tableau vide si pas de données
             evalData.grades = [];
             console.log('⚠️ Aucune note trouvée, initialisation avec tableau vide');
           }
         } catch (gradesError) {
           console.warn('⚠️ Impossible de recharger les notes:', gradesError);
-          // S'assurer que grades est défini même en cas d'erreur
           if (!evalData.grades) {
             evalData.grades = [];
           }
         }
         
-        // ✅ ÉTAPE 5 CORRIGÉE: Vérification finale et debug
+        // ✅ ÉTAPE 5 NOUVELLE: Charger les commentaires
+        try {
+          console.log('💬 Chargement des commentaires...');
+          const comments = await evaluationService.getComments(evaluationId);
+          
+          if (comments && Array.isArray(comments)) {
+            evalData.comments = comments;
+            console.log('✅ Commentaires chargés:', comments.length, 'commentaires');
+          } else {
+            evalData.comments = [];
+            console.log('⚠️ Aucun commentaire trouvé, initialisation avec tableau vide');
+          }
+        } catch (commentsError) {
+          console.warn('⚠️ Impossible de charger les commentaires:', commentsError);
+          evalData.comments = [];
+        }
+        
+        // ÉTAPE 6: Vérification finale et debug
         console.log('🔍 État final:', {
           shouldShowEval: shouldShowEvaluation(evalData),
           shouldShowResults: shouldShowResults(evalData),
           hasGrades: evalData.grades?.length > 0,
           gradesCount: evalData.grades?.length || 0,
+          hasComments: evalData.comments?.length > 0,
+          commentsCount: evalData.comments?.length || 0,
           userRole: user?.role
         });
         
@@ -259,12 +275,12 @@ export default function EvaluationDetailPage() {
         setLoading(false);
       }
     };
-
+  
     if (evaluationId) {
       fetchData();
     }
   }, [evaluationId, showNotification, user]);
-
+  
   // ✅ CORRECTION MAJEURE : Publier même sans toutes les notes
   const handleChangeStatus = async (newStatus: 'published' | 'archived') => {
     try {
